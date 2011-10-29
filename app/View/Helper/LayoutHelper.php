@@ -269,7 +269,7 @@ class LayoutHelper extends AppHelper {
         $content_callback = $this->hook($callback, $node, array('collectReturn' => false));
 
         if (empty($content_callback)) {
-            $content .= $this->default_renderNode($node);
+            $content .= $this->default_render_node($node);
         } else {
             $content .= $content_callback;
         }
@@ -435,17 +435,6 @@ class LayoutHelper extends AppHelper {
     }
 
 /**
- * Get all Role ID of the current loged in user.
- *
- * @return array Array of all roles that user belongs to.
- */
-    public function getRoleId() {
-        $roleId = $this->isLoggedIn() ? $this->Session->read('Auth.User.role_id') : 3;
-
-        return $roleId;
-    }
-
-/**
  * Checks user session.
  *
  * @return boolean, TRUE if user is logged in. FALSE otherwise.
@@ -460,7 +449,7 @@ class LayoutHelper extends AppHelper {
  * @return boolean
  */ 
     public function isAdmin() {
-        return in_array(1, (array)$this->getRoleId());
+        return in_array(1, (array)$this->userRoles());
     }
 
 /**
@@ -636,15 +625,15 @@ class LayoutHelper extends AppHelper {
 
             switch ($block['Block']['visibility']) {
                 case 0:
-                    $allowed = $this->__matchPath($block['Block']['pages']) ? false : true;
+                    $allowed = $this->_urlMatch($block['Block']['pages']) ? false : true;
                 break;
 
                 case 1:
-                    $allowed = $this->__matchPath($block['Block']['pages']) ? true : false;
+                    $allowed = $this->_urlMatch($block['Block']['pages']) ? true : false;
                 break;
 
                 case 2:
-                    $allowed = $this->__php_eval($block['Block']['pages']);
+                    $allowed = $this->_php_eval($block['Block']['pages']);
                 break;
             }
 
@@ -796,15 +785,15 @@ class LayoutHelper extends AppHelper {
          */
         switch ($block['Block']['visibility']) {
             case 0:
-                $allowed = $this->__matchPath($block['Block']['pages']) ? false : true;
+                $allowed = $this->_urlMatch($block['Block']['pages']) ? false : true;
             break;
 
             case 1:
-                $allowed = $this->__matchPath($block['Block']['pages']) ? true : false;
+                $allowed = $this->_urlMatch($block['Block']['pages']) ? true : false;
             break;
 
             case 2:
-                $allowed = $this->__php_eval($block['Block']['pages']);
+                $allowed = $this->_php_eval($block['Block']['pages']);
             break;
         }
 
@@ -878,13 +867,16 @@ class LayoutHelper extends AppHelper {
             $Block['params'] = $options['params'];
         }
 
-        $this->hook('theme_block_alter', $Block, array('collectReturn' => true));    // pass block item to theme before render
-        $out = $this->hook('theme_block', $Block, array('collectReturn' => false));    // try theme rendering
+        $this->hook('theme_block_data_alter', $Block, array('collectReturn' => false)); // pass block array to modules
+
+        $out = $this->hook('theme_block', $Block, array('collectReturn' => false)); // try theme rendering
 
         // No response from theme -> use default rendering
         if (empty($out)) {
             $out = $this->default_theme_block($Block);
         }
+
+        $this->hook('theme_block_alter', $out, array('collectReturn' => false));
 
         return $out;
     }
@@ -911,6 +903,9 @@ class LayoutHelper extends AppHelper {
 /**
  * Special hookTags that are not managed by any modules:
  *  `[date=FORMAT]` Return current date(FORMAT).
+ *  `[rand={values,by,comma}]` Returns a radom value from the specified group.
+ *                             If only two numeric values are given as group, 
+ *                             then rand(num1, num2) is returned.
  *  `[language.OPTION]` Current language option (code, name, native, direction).
  *  `[language]` Shortcut to [language.code] which return current language code.
  *  `[url]YourURL[/url]` or `[url=YourURL]` Formatted url.
@@ -977,6 +972,22 @@ class LayoutHelper extends AppHelper {
             $text = str_replace("[date={$format}]", date($format), $text);
         }
 
+        //[rand=a,b,c]
+        preg_match_all('/\[rand\=(.+)\]/iUs', $text, $randomMatches);
+        foreach ($randomMatches[1] as $_values) {
+            $values = explode(',', $_values);
+            $values = array_map('trim', $values);
+            $c = count($values);
+
+            if ($c == 2 && is_numeric($values[0]) && is_numeric($values[1])) {
+                $replace = rand($values[0], $values[1]);
+            } else {
+                $replace = $values[rand(0, $c-1)];
+            }
+
+            $text = str_replace("[rand={$_values}]", $replace, $text);
+        }
+
         //[Layout.PATH]
         preg_match_all('/\[Layout.(.+)\]/iUs', $text, $layoutPaths);
         foreach ($layoutPaths[1] as $path) {
@@ -1003,8 +1014,8 @@ class LayoutHelper extends AppHelper {
         return $this->_View->element('default_theme_breadcrumb', array('crumbs' => $crumb));
     }
 
-    public function default_renderNode($node) {
-        return $this->_View->element('default_renderNode', array('node' => $node));
+    public function default_render_node($node) {
+        return $this->_View->element('default_render_node', array('node' => $node));
     }
 
 /**
@@ -1068,76 +1079,5 @@ class LayoutHelper extends AppHelper {
         }
 
         return $atts;
-    }
-
-/**
- * Evaluate a string of PHP code.
- *
- * This is a wrapper around PHP's eval(). It uses output buffering to capture both
- * returned and printed text. Unlike eval(), we require code to be surrounded by
- * <?php ?> tags; in other words, we evaluate the code as if it were a stand-alone
- * PHP file.
- *
- * Using this wrapper also ensures that the PHP code which is evaluated can not
- * overwrite any variables in the calling code, unlike a regular eval() call.
- *
- * @param string $code The code to evaluate.
- * @return
- *   A string containing the printed output of the code, followed by the returned
- *   output of the code.
- *
- */
-    private function __php_eval($code) {
-        ob_start();
-        $Layout =& $this->_View->viewVars['Layout'];
-        $View =& $this->_View;
-        print eval('?>' . $code);
-        $output = ob_get_contents();
-        ob_end_clean();
-
-        return (bool)$output;
-    }
-
-/**
- * Check if a path matches any pattern in a set of patterns.
- *
- * @param $path The path to match.
- * @param $patterns String containing a set of patterns separated by \n, \r or \r\n.
- * @return Boolean value: TRUE if the path matches a pattern, FALSE otherwise.
- */
-    private function __matchPath($patterns, $path = false) {
-        if (empty($patterns)) {
-            return false;
-        }
-
-        $path = !$path ? '/' . $this->_View->request->url : $path;
-        $patterns = explode("\n", $patterns);
-
-        foreach ($patterns as &$p) {
-            $p = Router::url('/') . $p;
-            $p = str_replace('//', '/', $p);
-            $p = str_replace($this->_View->base, '', $p);
-        }
-
-        $patterns = implode("\n", $patterns);
-
-        // Convert path settings to a regular expression.
-        // Therefore replace newlines with a logical or, /* with asterisks and the <front> with the frontpage.
-        $to_replace = array(
-            '/(\r\n?|\n)/', // newlines
-            '/\\\\\*/',     // asterisks
-            '/(^|\|)\/($|\|)/' // front '/'
-        );
-
-        $replacements = array(
-            '|',
-            '.*',
-            '\1' . preg_quote(Router::url('/'), '/') . '\2'
-        );
-
-        $patterns_quoted = preg_quote($patterns, '/');
-        $regexps[$patterns] = '/^(' . preg_replace($to_replace, $replacements, $patterns_quoted) . ')$/';
-
-        return (bool) preg_match($regexps[$patterns], $path);
     }
 }
