@@ -90,16 +90,13 @@ class AppController extends Controller {
     public function isAuthorized($user) {
         $this->Quickapps->accessCheck();
 
-		$isAllowed = (
-			$this->Auth->allowedActions == array('*') || 
-			in_array($this->request->params['action'], $this->Auth->allowedActions)
-		);
+		$isAllowed = ($this->Auth->allowedActions == array('*') || in_array($this->request->params['action'], $this->Auth->allowedActions));
 
         return $isAllowed;
     }
 
 /**
- * shortcut for $this->set(`title_for_layout`...)
+ * shortcut for $this->set(`title_for_layout`, ...)
  *
  * @param string $str layout title
  * @return void
@@ -131,7 +128,7 @@ class AppController extends Controller {
     }
 
 /**
- * Wrapper method to Hook::hook_defined
+ * Wrapper method to HookComponent::hook_defined
  *
  * @param string $hook Name of the event
  * @return bool
@@ -156,7 +153,7 @@ class AppController extends Controller {
  *  $response = $this->hook('collect_hook_with_no_parameters');
  *
  *  $this->setHookOptions(array('collectReturn' => false, 'break' => true, 'breakOn' => false));
- *  $response2 = $this->hook('no_collect_and_breakOn_hook_with_no_parameters');
+ *  $response2 = $this->hook('no_collect_and_breakon_hook_with_no_parameters');
  * }}}
  *
  * @param array $options Array of options to overwrite
@@ -167,11 +164,12 @@ class AppController extends Controller {
     }
 
 /**
- * Wrapper method to Hook::__dispatchEvent
+ * Wrapper method to HookComponent::hook
  *
- * @param string $hook Name of the event
+ * @see HookComponent::__dispatchEvent
+ * @param string $hook Name of the event to fire
  * @param mix $data Any data to attach
- * @param bool $raw_return false means return asociative data, true will return a listed array
+ * @param array $options Options for hook dispatcher
  * @return mixed FALSE -or- result array
  */
     public function hook($hook, &$data = array(), $options = array()) {
@@ -235,15 +233,15 @@ class AppController extends Controller {
         foreach ($plugins as $plugin) {
             $ppath = CakePlugin::path($plugin);
 
-            # inactive module, except fields that are nor registered as plugin en DB
+            # inactive module, except fields that are nor registered as plugin in DB
             if (!in_array($plugin, $_modules) && strpos($ppath, DS . 'Fields' . DS) === false) {
                 continue;
             }
 
             if ((isset($modulesCache[$plugin]['status']) && $modulesCache[$plugin]['status'] == 0) ||
-                (strpos($ppath, DS . 'View' . DS . 'Themed') !== false && strpos($ppath, 'Themed' . DS . $themeToUse . DS . 'app') === false)
+                (strpos($ppath, THEMES) !== false && strpos($ppath, THEMES . $themeToUse . DS . 'app') === false)
             ) {
-                continue; # Important: skip no active themes
+                continue; # Important: skip disabled themes
             }
 
             $paths["{$plugin}_components"] = $ppath . 'Controller' . DS . 'Component' . DS;

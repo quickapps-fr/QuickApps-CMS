@@ -11,10 +11,11 @@
  * @link     http://cms.quickapps.es
  */
 class Comment extends CommentAppModel {
+    private $__nodeData = null; # tmp holder
     public $name = 'Comment';
     public $useTable = "comments";
     public $primaryKey = 'id';
-    private $nodeData = null; # tmp holder
+    public $order = array('Comment.created' => 'DESC');
     public $actsAs = array('Comment.BBCode' => array('fields' => array('body')));
 
     public $belongsTo  = array(
@@ -63,9 +64,9 @@ class Comment extends CommentAppModel {
         }
 
         $this->Node->recursive = 1;
-        $this->nodeData = $this->Node->findById($this->data['Comment']['node_id']);
+        $this->__nodeData = $this->Node->findById($this->data['Comment']['node_id']);
 
-        if (!$this->nodeData) {
+        if (!$this->__nodeData) {
             return false;
         }
 
@@ -74,7 +75,7 @@ class Comment extends CommentAppModel {
         $userId = CakeSession::read('Auth.User.id');
 
         if (!$userId) { # anonymous
-            switch ($this->nodeData['NodeType']['comments_anonymous']) {
+            switch ($this->__nodeData['NodeType']['comments_anonymous']) {
                 #name
                 case 0: #mail not sended, not requierd | name sended but not required
                     unset($this->validate['name'], $this->validate['email']);
@@ -108,11 +109,11 @@ class Comment extends CommentAppModel {
         } else {
             unset($this->validate['name'], $this->validate['email'], $this->validate['homepage']);
 
-            $this->data['Comment']['status'] = intval($this->nodeData['NodeType']['comments_approve']);
+            $this->data['Comment']['status'] = intval($this->__nodeData['NodeType']['comments_approve']);
             $this->data['Comment']['user_id'] = $userId;
         }
 
-        $r = $this->hook('comment_beforeValidate', $this, array('collectReturn' => true, 'break' => true, 'breakOn' => false));
+        $r = $this->hook('comment_before_validate', $this, array('collectReturn' => true, 'break' => true, 'breakOn' => false));
 
         return !in_array(false, (array)$r, true);
     }
@@ -140,13 +141,14 @@ class Comment extends CommentAppModel {
             $this->data['Comment']['hostname'] = env('REMOTE_ADDR');
         }
 
-        $r = $this->hook('comment_beforeSave', $this, array('collectReturn' => true, 'break' => true, 'breakOn' => false));
+        $r = $this->hook('comment_before_save', $this, array('collectReturn' => true, 'break' => true, 'breakOn' => false));
 
         return !in_array(false, (array)$r, true);
     }
 
     private function __defaultSubject($string, $len = 30) {
         # ignore quotes
+        $__string = $string;
         $string = preg_replace('#\[quote(.*?)\](.*)\[/quote\]#U', '', $string);
         $string = $this->Behaviors->BBCode->bb_parse($string);
         $string = html_entity_decode(strip_tags($string));
@@ -166,6 +168,8 @@ class Comment extends CommentAppModel {
         }
 
         $string = trim($string);
+        $string = empty($string) && strpos($__string, '[quote') ? __d('comment', 'Quoting') : $string;
+        $string = empty($string) ? __d('comment', 'No subject') : $string;
 
         return $string;
     }

@@ -29,19 +29,25 @@
                     <div class="attribution">
                         <div class="submited">
                             <p class="commenter-name">
-                                <?php
-                                    if (
-                                        (isset($comment['User']['avatar']) && !empty($comment['User']['avatar'])) ||
-                                        (!isset($comment['User']['avatar']) && Configure::read('Variable.user_default_avatar') != '')
-                                    ):
-                                ?>
-                                    <div class="avatar">
-                                        <?php $avatar = (isset($comment['User']['avatar']) && !empty($comment['User']['avatar'])) ? $comment['User']['avatar'] : Configure::read('Variable.user_default_avatar') ; ?>
-                                        <?php echo $this->Html->image($avatar); ?>
-                                    </div>
-                                <?php endif; ?>
-                                <?php $userURL = !empty($comment['Comment']['homepage']) ? $comment['Comment']['homepage'] : 'javascript: return false;'; ?>
-                                <?php $userURL = empty($userURL) && isset($comment['User']['username']) ? $this->Html->url("/user/profile/{$comment['User']['username']}") : $userURL; ?>
+
+                                <div class="avatar">
+                                    <?php
+                                        if (isset($comment['User'])) {
+                                            echo $this->Layout->userAvatar($comment);
+                                        } else {
+                                            $this->Layout->userAvatar(
+                                                array(
+                                                    'User' => array(
+                                                        'email' => $comment['Comment']['mail']
+                                                    )
+                                                )
+                                            );
+                                        }
+                                    ?>
+                                </div>
+
+                                <?php $userURL = !empty($comment['Comment']['homepage']) ? $comment['Comment']['homepage'] : ''; ?>
+                                <?php $userURL = empty($userURL) && isset($comment['User']['username']) ? $this->Html->url("/user/profile/{$comment['User']['username']}") : 'javascript: return false;'; ?>
                                 <a href="<?php echo $userURL; ?>" class="username" rel="nofollow">
                                     <?php echo isset($comment['User']['username']) ? $comment['User']['username'] : $comment['Comment']['name']; ?>
                                 </a>

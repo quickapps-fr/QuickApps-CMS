@@ -265,7 +265,7 @@ class LayoutHelper extends AppHelper {
         $node['Field'] = Set::sort($node['Field'], "{n}.settings.display.{$view_mode}.ordering", 'asc');
         $sufix = $node['NodeType']['module'] == 'Node' ? 'render' : $node['NodeType']['id'];
         $callback = "{$node['NodeType']['base']}_{$sufix}";
-        $content .= implode('', (array)$this->hook('beforeRenderNode', $node, array('collectReturn' => true)));
+        $content .= implode('', (array)$this->hook('before_render_node', $node, array('collectReturn' => true)));
         $content_callback = $this->hook($callback, $node, array('collectReturn' => false));
 
         if (empty($content_callback)) {
@@ -274,7 +274,7 @@ class LayoutHelper extends AppHelper {
             $content .= $content_callback;
         }
 
-        $content .= implode('', (array)$this->hook('afterRenderNode', $node, array('collectReturn' => true)));
+        $content .= implode('', (array)$this->hook('after_render_node', $node, array('collectReturn' => true)));
         $content = "\n\t" . $this->hookTags($content) . "\n";
 
         if (isset($this->tmp['renderedNodes'])) {
@@ -437,7 +437,10 @@ class LayoutHelper extends AppHelper {
  * @return boolean True if is frontpage. False otherwise.
  */
     public function isFrontpage() {
-        return ($this->_View->plugin == 'Node' && $this->_View->params['action'] == 'index');
+        return ($this->_View->plugin == 'Node' &&
+                $this->_View->params['action'] == 'index' &&
+                !Configure::read('Variable.site_frontpage')
+        );
     }
 
 /**
@@ -456,6 +459,47 @@ class LayoutHelper extends AppHelper {
  */ 
     public function isAdmin() {
         return in_array(1, (array)$this->userRoles());
+    }
+
+/**
+ * Generates user's avatar image
+ *
+ * @param array $user Optional user data, current logged user data will be used otherwise
+ * @param array $options extra Options for Html->image()
+ * @return HTML <img>
+ */ 
+    public function userAvatar($user = false, $options = array()) {
+        $__options = array(
+            'class' => 'user-avatar'
+        );
+
+        if (!$user) {
+            $user = $this->Session->read('Auth.User');
+        }
+
+        if (!isset($user['User'])) {
+            return '';
+        }
+
+        if (isset($user['User']['avatar']) && !empty($user['User']['avatar'])) {
+            $avatar = $user['User']['avatar'];
+        } else {
+            if (!Configure::read('Variable.user_default_avatar')) {
+                if (isset($user['User']['email']) && !empty($user['User']['email'])) {
+                    $hash = md5(strtolower(trim("{$user['User']['email']}")));
+                } else {
+                    $hash = md5(strtolower(trim("")));
+                }
+
+                $avatar = "http://www.gravatar.com/avatar/{$hash}";
+            } else {
+                $avatar = Configure::read('Variable.user_default_avatar');
+            }
+        }
+
+        $options = array_merge($__options, $options);
+
+        return $this->_View->Html->image($avatar, $options);
     }
 
 /**
@@ -729,7 +773,7 @@ class LayoutHelper extends AppHelper {
             }
 
             $_data = array('html' => $output, 'region' => $region);
-            $this->hook('theme_region_blocks_alter', $_data, array('collectReturn' => false)); // pass all rendered blocks (HTML) to modules
+            $this->hook('blocks_alter', $_data, array('collectReturn' => false)); // pass all rendered blocks (HTML) to modules
 
             extract($_data);
         }
@@ -873,7 +917,7 @@ class LayoutHelper extends AppHelper {
             $Block['params'] = $options['params'];
         }
 
-        $this->hook('theme_block_data_alter', $Block, array('collectReturn' => false)); // pass block array to modules
+        $this->hook('block_data_alter', $Block, array('collectReturn' => false)); // pass block array to modules
 
         $out = $this->hook('theme_block', $Block, array('collectReturn' => false)); // try theme rendering
 
@@ -882,7 +926,7 @@ class LayoutHelper extends AppHelper {
             $out = $this->default_theme_block($Block);
         }
 
-        $this->hook('theme_block_alter', $out, array('collectReturn' => false));
+        $this->hook('block_alter', $out, array('collectReturn' => false));
 
         return $out;
     }
@@ -937,13 +981,13 @@ class LayoutHelper extends AppHelper {
         //[url]URL[/url]
         preg_match_all('/\[url\](.+)\[\/url\]/iUs', $text, $urlMatches);
         foreach ($urlMatches[1] as $url) {
-            $text = str_replace("[url]{$url}[/url]", $this->_View->Html->url($url, true), $text);
+            $text = str_replace("[url]{$url}[/url]", Router::url($url, true), $text);
         }
 
         //[url=URL]
         preg_match_all('/\[url\=(.+)\]/iUs', $text, $urlMatches);
         foreach ($urlMatches[1] as $url) {
-            $text = str_replace("[url={$url}]", $this->_View->Html->url($url, true), $text);
+            $text = str_replace("[url={$url}]", Router::url($url, true), $text);
         }
 
         //[t=text to translate]
@@ -1002,7 +1046,7 @@ class LayoutHelper extends AppHelper {
         }
 
         # pass text to modules so they can apply their own special tags
-        $this->hook('specialTags_alter', $text);
+        $this->hook('special_tags_alter', $text);
 
         return $text;
     }

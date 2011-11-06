@@ -148,15 +148,15 @@ class NodeController extends NodeAppController {
             $data['Comment']['node_id'] = $result['Node']['id'];
 
             if ($this->Comment->save($data)) {
-                if (!$this->Auth->user()) {
-                    $this->flashMsg(__t('Your comment has been queued for review by site administrators and will be published after approval.'), 'success');
+                if (!$this->Comment->data['Comment']['status']) {
+                    $this->flashMsg(__d('comment', 'Your comment has been queued for review by site administrators and will be published after approval.'), 'alert');
                 } else {
-                    $this->flashMsg(__t('Your comment has been posted.'), 'success');
+                    $this->flashMsg(__d('comment', 'Your comment has been posted.'), 'success');
                 }
 
                 $this->redirect($this->referer());
             } else {
-               $this->flashMsg(__t('Comment could not be saved. Please try again.'), 'error');
+               $this->flashMsg(__d('comment', 'Comment could not be saved. Please try again.'), 'error');
             }
         }
 
@@ -203,10 +203,6 @@ class NodeController extends NodeAppController {
                 'hasMany' => array('Comment')
             )
         );
-
-        if (isset($this->request->query['criteria']) && !empty($this->request->query['criteria'])) {
-            $criteria = $this->request->query['criteria'];
-        }
 
         if ($criteria) {
             $criteria = urldecode($criteria);
@@ -283,6 +279,8 @@ class NodeController extends NodeAppController {
                     $scope['Node.language'][] = '';
                     unset($scope['Node.language'][array_search('any', $scope['Node.language'])]);
                 }
+            } else {
+                $scope['Node.language'] = array(null, '', Configure::read('Variable.language.code'));
             }
 
             preg_match_all('/(^| )\-[a-z0-9]+/i', $criteria, $negative);
@@ -314,6 +312,7 @@ class NodeController extends NodeAppController {
             }
 
             $criteria = explode('OR', trim($criteria));
+
             foreach ($criteria as $or) {
                 $or = trim($or);
 
@@ -409,7 +408,7 @@ class NodeController extends NodeAppController {
         }
 
         if ($rss) {
-            $this->layout = 'rss';
+            $this->layoutPath = 'rss';
             $this->helpers[] = 'Rss';
             $this->helpers[] = 'Text';
             $this->Layout['viewMode'] = 'rss';
